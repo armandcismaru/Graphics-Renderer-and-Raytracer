@@ -141,17 +141,22 @@ void drawLine(CanvasPoint from, CanvasPoint to, Colour c, DrawingWindow &window)
 	float yDiff = to.y - from.y;
 	float numberOfSteps = std::max(abs(xDiff), abs(yDiff));
 
-	float xStepSize = xDiff/numberOfSteps;
-	float yStepSize = yDiff/numberOfSteps;
-
-	std::vector<float> valuesX = interpolateSingleFloats(from.x, to.x, numberOfSteps+1);
-	std::vector<float> valuesY = interpolateSingleFloats(from.y, to.y, numberOfSteps+1);
-
+	std::vector<glm::vec3> values = interpolateThreeElementValues(
+		glm::vec3(from.x, from.y, from.depth), 
+		glm::vec3(to.x, to.y, to.depth), numberOfSteps+1
+	);
+	
 	for(int i=0; i<numberOfSteps; i++){
-		float x = from.x + (xStepSize*i);
-		float y = from.y + (yStepSize*i);
+		int x = round(values[i][0]);
+		int y = round(values[i][1]);
+		float depth = values[i][2];
+
 		uint32_t colour = (255 << 24) + (c.red << 16) + (c.green << 8) + c.blue;
-		window.setPixelColour(round(valuesX[i]), round(valuesY[i]), colour);
+	
+		if (depth > depthBuffer[x][y] || depthBuffer[x][y] == 0){
+			depthBuffer[x][y] = depth;
+			window.setPixelColour(x, y, colour);
+		}
 	}
 }
 
@@ -167,14 +172,18 @@ void fillTopFlat(DrawingWindow &window, CanvasPoint v1, CanvasPoint v2, CanvasPo
 
 	float lineLeft = v3.x;
 	float lineRight = v3.x;
-	
-	std::vector<float> yLine = interpolateSingleFloats(v1.y, v3.y, v3.y - v1.y + 1);
+	//std::cout << v1.y << " " << v3.y << std::endl;
 
-	//for (float lineY = v3.y; lineY >= v1.y; lineY--){
+	std::vector<glm::vec3> values = interpolateThreeElementValues(
+		glm::vec3(v1.depth, v2.depth, v1.y), 
+		glm::vec3(v3.depth, v3.depth, v3.y), 
+		v3.y - v1.y + 1
+	); 
 
-	for (int y = yLine.size(); y >= 0; y--){
-		//std::vector<float> lineDepths = interpolateSingleFloats(lineLeft, lineRight, round(lineRight-lineLeft));
-		drawLine(CanvasPoint(lineLeft, yLine[y]), CanvasPoint(lineRight, yLine[y]), c, window);
+	for (int y = values.size(); y >= 0; y--){
+		glm::vec3 val = values[y];
+		//std::cout << lDepths[y] << " " << rDepths[y] << std::endl;
+		drawLine(CanvasPoint(lineLeft, val[2], val[0]), CanvasPoint(lineRight, val[2], val[1]), c, window);
 		lineLeft -= invSlope1;
 		lineRight -= invSlope2;
 	}
@@ -187,15 +196,14 @@ void fillBottomFlat(DrawingWindow &window, CanvasPoint v1, CanvasPoint v2, Canva
 	float lineLeft = v1.x;
 	float lineRight = v1.x;
 
-	//std::vector<float> yDepths = interpolateSingleFloats(v1.depth, v2.depth, v2.y - v1.y);
-	std::vector<float> yLine = interpolateSingleFloats(v1.y, v2.y, v2.y - v1.y + 1);
+	std::vector<glm::vec3> values = interpolateThreeElementValues(
+		glm::vec3(v1.depth, v1.depth, v1.y), 
+		glm::vec3(v2.depth, v3.depth, v2.y), v2.y - v1.y + 1
+	); 
 
-	//for (float lineY = v1.y; lineY <= v2.y; lineY++){
-
-	for (int y = 0; y < yLine.size(); y++){
-		//std::vector<float> lineDepths = interpolateSingleFloats(lineLeft, lineRight, round(lineRight-lineLeft));
-		//drawLine(CanvasPoint(lineLeft, lineY), CanvasPoint(lineRight, lineY), c, window);
-		drawLine(CanvasPoint(lineLeft, yLine[y]), CanvasPoint(lineRight, yLine[y]), c, window);
+	for (int y = 0; y < values.size(); y++){
+		glm::vec3 val = values[y];
+		drawLine(CanvasPoint(lineLeft, val[2], val[0]), CanvasPoint(lineRight, val[2], val[1]), c, window);
 		lineLeft += invSlope1;
 		lineRight += invSlope2;
 	}
@@ -215,10 +223,16 @@ void drawFilled(DrawingWindow &window, CanvasTriangle triangle, Colour c){
 	}
 	else
 	{
-		float v3x = triangle.v0().x + ((triangle.v1().y - triangle.v0().y) / (triangle.v2().y - triangle.v0().y)) * (triangle.v2().x - triangle.v0().x);
+		float v3x = triangle.v0().x 
+			+ ((triangle.v1().y - triangle.v0().y) / (triangle.v2().y - triangle.v0().y)) 
+				* (triangle.v2().x - triangle.v0().x);
 
-		std::vector<float> leftDepths = interpolateSingleFloats(triangle.v0().depth, triangle.v2().depth, triangle.v2().y-triangle.v0().y);
-		float v3depth = leftDepths[round(triangle.v1().y-triangle.v0().y)];
+		std::vector<float> leftDepths = interpolateSingleFloats(
+			triangle.v0().depth, 
+			triangle.v2().depth, 
+			triangle.v2().y-triangle.v0().y+1
+		);
+		float v3depth = leftDepths[round(triangle.v1().y-triangle.v0().y+1)];
 
 		CanvasPoint v3 = CanvasPoint(v3x ,triangle.v1().y, v3depth);
 		fillBottomFlat(window, triangle.v0(), triangle.v1(), v3, c);
@@ -294,12 +308,12 @@ CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 verte
 	float cameraZ = vertexPosition[2] - cameraPosition[2];
 
 	float u = focalLength * (cameraX/cameraZ) * SCALING_CONSTANT + WIDTH/2;  
-	float v = focalLength * (cameraY/cameraZ) * SCALING_CONSTANT+ HEIGHT/2;  
+	float v = focalLength * (cameraY/cameraZ) * SCALING_CONSTANT + HEIGHT/2;  
 
-	return CanvasPoint(WIDTH-u, v, 1/cameraZ);
+	return CanvasPoint(WIDTH-u, v, 1/vertexPosition[2]);
 }
 
-void renderTriangles(std::vector<ModelTriangle> triangles, glm::vec3 cameraPosition, float focalLength, DrawingWindow &window, std::array<std::array<float, HEIGHT>, WIDTH> depthBuffer){
+void renderTriangles(std::vector<ModelTriangle> triangles, glm::vec3 cameraPosition, float focalLength, DrawingWindow &window){
 	for (int i=0; i<triangles.size(); i++){
 		ModelTriangle triangle = triangles[i];
 		std::array<CanvasPoint, 3> cPoints{}; 
@@ -307,78 +321,9 @@ void renderTriangles(std::vector<ModelTriangle> triangles, glm::vec3 cameraPosit
 			cPoints[j] = getCanvasIntersectionPoint(cameraPosition, triangle.vertices[j], focalLength);
 		}
 		CanvasTriangle strokedTriangle = CanvasTriangle(cPoints[0], cPoints[1], cPoints[2]);
-		//fillTriangleDepth(window, strokedTriangle, depthBuffer);
 		drawFilled(window, strokedTriangle, triangle.colour);
 		//drawStroked(window, strokedTriangle, triangle.colour);
 	}
-}
-
-void fillDepthTopFlat(DrawingWindow &window, CanvasPoint v1, CanvasPoint v2, CanvasPoint v3, std::array<std::array<float, HEIGHT>, WIDTH> &depthBuffer){
-	float invSlope1 = (v3.x - v1.x)/(v3.y - v1.y);
-	float invSlope2 = (v3.x - v2.x)/(v3.y - v2.y);
-
-	float lineLeft = v3.x;
-	float lineRight = v3.x;
-	
-	std::vector<float> rateGrowthDepthLeft = interpolateSingleFloats(v3.depth, v1.depth, v3.y-v1.y);
-	std::vector<float> rateGrowthDepthRight = interpolateSingleFloats(v3.depth, v2.depth, v3.y-v2.y);
-	
-	for (int lineY = round(v3.y-v2.y-1); lineY >= 0; lineY--){
-		std::vector<float> depths = interpolateSingleFloats(rateGrowthDepthLeft[lineY], rateGrowthDepthRight[lineY], lineRight-lineLeft);
-		for (int j=round(lineLeft); j<=round(lineRight); j++)
-			depthBuffer[j][lineY] = depths[j-round(lineLeft)];
-
-		lineLeft -= invSlope1;
-		lineRight -= invSlope2;
-	}
-}
-
-void fillDepthBottomFlat(DrawingWindow &window, CanvasPoint v1, CanvasPoint v2, CanvasPoint v3, std::array<std::array<float, HEIGHT>, WIDTH> &depthBuffer){
-	float invSlope1 = (v2.x - v1.x)/(v2.y - v1.y);
-	float invSlope2 = (v3.x - v1.x)/(v3.y - v1.y);
-
-	float lineLeft = v1.x;
-	float lineRight = v1.x;
-
-	std::vector<float> rateGrowthDepthLeft = interpolateSingleFloats(v3.depth, v1.depth, round(v3.y-v1.y));
-	std::vector<float> rateGrowthDepthRight = interpolateSingleFloats(v2.depth, v1.depth, round(v2.y-v1.y));
-	std::cout << lineLeft << " " << lineRight << '\n';
-	for (int lineY = 0; lineY < round(v2.y-v1.y); lineY++){
-		std::vector<float> depths = interpolateSingleFloats(rateGrowthDepthLeft[lineY], rateGrowthDepthRight[lineY], round(lineRight-lineLeft));
-		for (int j=round(lineLeft); j<=round(lineRight); j++)
-			depthBuffer[j][lineY] = depths[j-round(lineLeft)];
-
-		lineLeft += invSlope1;
-		lineRight += invSlope2;
-	}
-}
-
-
-void fillTriangleDepth(DrawingWindow &window, CanvasTriangle triangle, std::array<std::array<float, HEIGHT>, WIDTH> &depthBuffer){
-	for (int i=0; i<2; i++)
-		for(int j=i+1; j<3; j++)
-			if(triangle[i].y > triangle[j].y)
-				std::swap(triangle[i], triangle[j]);
-
-	/*if (triangle[1].y == triangle[2].y){
-		fillDepthBottomFlat(window, triangle[0], triangle[1], triangle[2], depthBuffer);
-	}
-	else if (triangle[0].y == triangle[1].y){
-		fillDepthTopFlat(window, triangle[0], triangle[1], triangle[2], depthBuffer);
-	}
-	else
-	{*/
-		float v3x = triangle[0].x + ((triangle[1].y - triangle[0].y) / (triangle[2].y - triangle[0].y)) * (triangle[2].x - triangle[0].x);
-		std::vector<float> leftDepths = interpolateSingleFloats(triangle[0].depth, triangle[2].depth, triangle[2].y-triangle[0].y);
-		
-		float v3depth = leftDepths[round(triangle[1].y-triangle[0].y)];
-		
-		std::cout << triangle[0].depth << " " << triangle[1].depth << " " << triangle[2].depth << " " << v3depth<< "\n";
-		CanvasPoint v3 = CanvasPoint(v3x ,triangle[1].y, v3depth);
-		fillDepthBottomFlat(window, triangle[0], triangle[1], v3, depthBuffer);
-		//fillDepthTopFlat(window, triangle[1], v3, triangle[2], depthBuffer);
-	//}
-	return;
 }
 
 int main(int argc, char *argv[]) {
@@ -388,16 +333,15 @@ int main(int argc, char *argv[]) {
 
 	std::map<std::string, Colour> colours = readMTL("cornell-box.mtl");
 	std::vector<ModelTriangle> triangles = readOBJ("cornell-box.obj", colours, window);
-	std::array<std::array<float, HEIGHT>, WIDTH> depthBuffer;
 
 	for (int i=0; i <WIDTH; i++)
 		for (int j=0; j <HEIGHT; j++)
 			depthBuffer[i][j] = 0.0;
 
-	glm::vec3 cameraPosition = glm::vec3(0.0, 0.0, 4.1);
-	float focalLength = 2.2;
+	glm::vec3 cameraPosition = glm::vec3(0.0, 0.0, 4.15);
+	float focalLength = 2.3;
 
-	renderTriangles(triangles, cameraPosition, focalLength, window, depthBuffer);
+	renderTriangles(triangles, cameraPosition, focalLength, window);
 
 	while (true) {
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
