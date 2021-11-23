@@ -143,17 +143,28 @@ void drawLine(CanvasPoint from, CanvasPoint to, Colour c, DrawingWindow &window)
 
 	std::vector<glm::vec3> values = interpolateThreeElementValues(
 		glm::vec3(from.x, from.y, from.depth), 
-		glm::vec3(to.x, to.y, to.depth), numberOfSteps+1
+		glm::vec3(to.x, to.y, to.depth), 
+		numberOfSteps+1
 	);
-	
-	for(int i=0; i<numberOfSteps; i++){
+	//std::cout << numberOfSteps << " " << values.size() << std::endl;
+	for(int i=0; i<values.size(); i++){
 		int x = round(values[i][0]);
 		int y = round(values[i][1]);
 		float depth = values[i][2];
+		float a, b;
 
 		uint32_t colour = (255 << 24) + (c.red << 16) + (c.green << 8) + c.blue;
-	
-		if (depth > depthBuffer[x][y] || depthBuffer[x][y] == 0){
+
+		if (depth < 0 && depthBuffer[x][y] < 0) {
+			a = abs(depth);
+			b = abs(depthBuffer[x][y]);
+		}
+		else {
+			a = depth;
+			b = depthBuffer[x][y];
+		}
+
+		if (a >= b || depthBuffer[x][y] == 0){
 			depthBuffer[x][y] = depth;
 			window.setPixelColour(x, y, colour);
 		}
@@ -169,10 +180,13 @@ void drawStroked(DrawingWindow &window, CanvasTriangle triangle, Colour c){
 void fillTopFlat(DrawingWindow &window, CanvasPoint v1, CanvasPoint v2, CanvasPoint v3, Colour c){
 	float invSlope1 = (v3.x - v1.x)/(v3.y - v1.y);
 	float invSlope2 = (v3.x - v2.x)/(v3.y - v2.y);
+	float invSlopeD1 = (v3.depth - v1.depth)/(v3.y - v1.y);
+	float invSlopeD2 = (v3.depth - v2.depth)/(v3.y - v2.y);
 
 	float lineLeft = v3.x;
 	float lineRight = v3.x;
-	//std::cout << v1.y << " " << v3.y << std::endl;
+	float depthLeft = v3.depth;
+	float depthRight = v3.depth;
 
 	std::vector<glm::vec3> values = interpolateThreeElementValues(
 		glm::vec3(v1.depth, v2.depth, v1.y), 
@@ -180,32 +194,43 @@ void fillTopFlat(DrawingWindow &window, CanvasPoint v1, CanvasPoint v2, CanvasPo
 		v3.y - v1.y + 1
 	); 
 
-	for (int y = values.size(); y >= 0; y--){
-		glm::vec3 val = values[y];
-		//std::cout << lDepths[y] << " " << rDepths[y] << std::endl;
-		drawLine(CanvasPoint(lineLeft, val[2], val[0]), CanvasPoint(lineRight, val[2], val[1]), c, window);
+	for (int y = v3.y; y >= v1.y; y--){
+		//glm::vec3 val = values[y];
+		drawLine(CanvasPoint(lineLeft, y, depthLeft), CanvasPoint(lineRight, y, depthRight), c, window);
 		lineLeft -= invSlope1;
 		lineRight -= invSlope2;
+
+		depthLeft -= invSlopeD1;
+		depthRight -= invSlopeD2;
 	}
 }
 
 void fillBottomFlat(DrawingWindow &window, CanvasPoint v1, CanvasPoint v2, CanvasPoint v3, Colour c){
 	float invSlope1 = (v2.x - v1.x)/(v2.y - v1.y);
 	float invSlope2 = (v3.x - v1.x)/(v3.y - v1.y);
+	float invSlopeD1 = (v2.depth - v1.depth)/(v2.y - v1.y);
+	float invSlopeD2 = (v3.depth - v1.depth)/(v3.y - v1.y);
 
 	float lineLeft = v1.x;
 	float lineRight = v1.x;
+	float depthLeft = v1.depth;
+	float depthRight = v1.depth;
 
 	std::vector<glm::vec3> values = interpolateThreeElementValues(
 		glm::vec3(v1.depth, v1.depth, v1.y), 
-		glm::vec3(v2.depth, v3.depth, v2.y), v2.y - v1.y + 1
+		glm::vec3(v2.depth, v3.depth, v2.y), 
+		v2.y - v1.y + 1
 	); 
 
-	for (int y = 0; y < values.size(); y++){
-		glm::vec3 val = values[y];
-		drawLine(CanvasPoint(lineLeft, val[2], val[0]), CanvasPoint(lineRight, val[2], val[1]), c, window);
+	for (int y = v1.y; y <= v2.y; y++){
+		//glm::vec3 val = values[y];
+		drawLine(CanvasPoint(lineLeft, y, depthLeft), CanvasPoint(lineRight, y, depthRight), c, window);
+
 		lineLeft += invSlope1;
 		lineRight += invSlope2;
+
+		depthLeft += invSlopeD1;
+		depthRight += invSlopeD2;
 	}
 }
 
@@ -214,7 +239,7 @@ void drawFilled(DrawingWindow &window, CanvasTriangle triangle, Colour c){
 		for(int j=i+1; j<3; j++)
 			if(triangle[i].y > triangle[j].y)
 				std::swap(triangle[i], triangle[j]);
-
+	
 	if (triangle.v1().y == triangle.v2().y){
 		fillBottomFlat(window, triangle.v0(), triangle.v1(), triangle.v2(), c);
 	}
@@ -226,19 +251,23 @@ void drawFilled(DrawingWindow &window, CanvasTriangle triangle, Colour c){
 		float v3x = triangle.v0().x 
 			+ ((triangle.v1().y - triangle.v0().y) / (triangle.v2().y - triangle.v0().y)) 
 				* (triangle.v2().x - triangle.v0().x);
+		
+		float v3depth = triangle.v0().depth 
+			+ ((triangle.v1().y - triangle.v0().y) / (triangle.v2().y - triangle.v0().y)) 
+				* (triangle.v2().depth - triangle.v0().depth);
 
-		std::vector<float> leftDepths = interpolateSingleFloats(
+		/*std::vector<float> leftDepths = interpolateSingleFloats(
 			triangle.v0().depth, 
 			triangle.v2().depth, 
 			triangle.v2().y-triangle.v0().y+1
 		);
-		float v3depth = leftDepths[round(triangle.v1().y-triangle.v0().y+1)];
+		float v3depth = leftDepths[round(triangle.v1().y-triangle.v0().y)];*/
 
 		CanvasPoint v3 = CanvasPoint(v3x ,triangle.v1().y, v3depth);
 		fillBottomFlat(window, triangle.v0(), triangle.v1(), v3, c);
 		fillTopFlat(window, triangle.v1(), v3, triangle.v2(), c);
 	}
-	//drawStroked(window, triangle, Colour(255, 255, 255));
+	//drawStroked(window, triangle, Colour(255,255,255));
 }
 
 std::vector<ModelTriangle> readOBJ (std::string fileName, std::map<std::string, Colour> colours, DrawingWindow &window){
@@ -310,19 +339,21 @@ CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 verte
 	float u = focalLength * (cameraX/cameraZ) * SCALING_CONSTANT + WIDTH/2;  
 	float v = focalLength * (cameraY/cameraZ) * SCALING_CONSTANT + HEIGHT/2;  
 
-	return CanvasPoint(WIDTH-u, v, 1/vertexPosition[2]);
+	return CanvasPoint(WIDTH-u, v, 1/(vertexPosition[2]));
 }
 
 void renderTriangles(std::vector<ModelTriangle> triangles, glm::vec3 cameraPosition, float focalLength, DrawingWindow &window){
 	for (int i=0; i<triangles.size(); i++){
 		ModelTriangle triangle = triangles[i];
 		std::array<CanvasPoint, 3> cPoints{}; 
+
 		for (int j=0; j<3; j++){
 			cPoints[j] = getCanvasIntersectionPoint(cameraPosition, triangle.vertices[j], focalLength);
 		}
 		CanvasTriangle strokedTriangle = CanvasTriangle(cPoints[0], cPoints[1], cPoints[2]);
 		drawFilled(window, strokedTriangle, triangle.colour);
-		//drawStroked(window, strokedTriangle, triangle.colour);
+		
+		//drawStroked(window, strokedTriangle, Colour(0,0,0));
 	}
 }
 
@@ -338,8 +369,8 @@ int main(int argc, char *argv[]) {
 		for (int j=0; j <HEIGHT; j++)
 			depthBuffer[i][j] = 0.0;
 
-	glm::vec3 cameraPosition = glm::vec3(0.0, 0.0, 4.15);
-	float focalLength = 2.3;
+	glm::vec3 cameraPosition = glm::vec3(0.0, 0.0, 4.05);
+	float focalLength = 2.35;
 
 	renderTriangles(triangles, cameraPosition, focalLength, window);
 
