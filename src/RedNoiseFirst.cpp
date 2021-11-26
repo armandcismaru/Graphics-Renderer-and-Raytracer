@@ -20,15 +20,19 @@
 #define SCALING_CONSTANT 500
 #define THETA 0.261799388
 
+
 glm::vec3 camPos = glm::vec3(0.0, 0.0, 2.5);
 glm::mat3 camOrientation = glm::mat3(1.0);
+bool orbit = false;
 std::array<std::array<float, HEIGHT>, WIDTH> depthBuffer;
+
 
 std::vector<float> interpolateSingleFloats(float from, float to, int numberOfValues);
 void drawStroked (DrawingWindow &window, CanvasTriangle triangle, Colour c);
 void drawFilled (DrawingWindow &window, CanvasTriangle triangle, Colour c);
 CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength);
 void fillTriangleDepth(DrawingWindow &window, CanvasTriangle triangle, std::array<std::array<float, HEIGHT>, WIDTH> &depthBuffer);
+
 
 void drawGreyscale(DrawingWindow &window) {
 	window.clearPixels();
@@ -86,25 +90,29 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 			Colour col = Colour(std::rand()%255, std::rand()%255, std::rand()%255);
 			drawFilled(window, CanvasTriangle(v0, v1, v2), col);
 		}
+		else if (event.key.keysym.sym == SDLK_p){
+			if (orbit) orbit = false;
+			else orbit = true;
+		}
 		else if (event.key.keysym.sym == SDLK_w){
 			glm::mat3 matX = xRotationMatrix(THETA);
-			camPos = matX*camPos;
+			camPos = matX * camPos;
 			camOrientation = camOrientation * matX;
 		}
 		else if (event.key.keysym.sym == SDLK_s){
 			glm::mat3 matX = xRotationMatrix(-THETA);
-			camPos = matX*camPos;
+			camPos = matX * camPos;
 			camOrientation = camOrientation * matX;
 		}
 		else if (event.key.keysym.sym == SDLK_q){
 			glm::mat3 matY = yRotationMatrix(THETA);
-			camPos = matY*camPos;
-			camOrientation = camOrientation * matY;
+			camPos = matY * camPos;
+			camOrientation = matY * camOrientation;
 		}
 		else if (event.key.keysym.sym == SDLK_e){
 			glm::mat3 matY = yRotationMatrix(-THETA);
-			camPos = matY*camPos;
-			camOrientation = camOrientation * matY;
+			camPos = matY * camPos;
+			camOrientation = matY * camOrientation;
 		}
 	}
 	else if (event.type == SDL_MOUSEBUTTONDOWN) {
@@ -175,19 +183,19 @@ void drawLine(CanvasPoint from, CanvasPoint to, Colour c, DrawingWindow &window)
 	if ((from.x < 0 || to.x >= WIDTH) && (to.y >= HEIGHT || from.y < 0))
 		return;
 
-	float xDiff = to.x - from.x;
-	//float yDiff = to.y - from.y;
-	//int numberOfSteps = std::max(abs(xDiff), abs(yDiff));
-	int numberOfSteps = abs(xDiff);
+	float xDiff = to.x - from.x+1;
+	float yDiff = to.y - from.y+1;
+	int numberOfSteps = std::max(abs(xDiff), abs(yDiff));
+
 	std::vector<glm::vec3> values = interpolateThreeElementValues(
-		glm::vec3(floor(from.x), from.y, from.depth), 
-		glm::vec3(ceil(to.x), to.y, to.depth), 
+		glm::vec3(floor(from.x), round(from.y), from.depth), 
+		glm::vec3(ceil(to.x), round(to.y), to.depth), 
 		numberOfSteps+1
 	);
 
-	for(int i=0; i<numberOfSteps+1; i++){
+	for(int i=0; i<values.size(); i++){
 		int x = values[i][0];
-		int y = round(values[i][1]);
+		int y = values[i][1];
 		float depth = values[i][2];
 		float a, b;
 
@@ -247,7 +255,7 @@ void fillBottomFlat(DrawingWindow &window, CanvasPoint v1, CanvasPoint v2, Canva
 	float depthLeft = v1.depth;
 	float depthRight = v1.depth;
 
-	for (int y = v1.y; y < v2.y; y++){
+	for (int y = v1.y; y <= v2.y; y++){
 		drawLine(CanvasPoint(lineLeft, y, depthLeft), CanvasPoint(lineRight, y, depthRight), c, window);
 		lineLeft += invSlope1;
 		lineRight += invSlope2;
@@ -352,7 +360,7 @@ CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 verte
 	float u = focalLength * (adjustedCamera[0]/adjustedCamera[2]) * SCALING_CONSTANT + WIDTH/2;  
 	float v = focalLength * (adjustedCamera[1]/adjustedCamera[2]) * SCALING_CONSTANT + HEIGHT/2;  
 
-	return CanvasPoint(WIDTH-u, v, 1/(cameraToVertex[2]));
+	return CanvasPoint(WIDTH-u, v, 1/cameraToVertex[2]);
 }
 
 void renderTriangles(std::vector<ModelTriangle> triangles, glm::vec3 cameraPosition, float focalLength, DrawingWindow &window){
@@ -369,9 +377,20 @@ void renderTriangles(std::vector<ModelTriangle> triangles, glm::vec3 cameraPosit
 	}
 }
 
-void lookAt(glm::vec3 point){
+glm::mat3 lookAt(glm::vec3 point){
+	glm::vec3 zaxis = glm::normalize(point - camPos);    
+ 	glm::vec3 xaxis = glm::normalize(glm::cross(zaxis, glm::vec3(0,1,0)));
+  	glm::vec3 yaxis = glm::cross(xaxis, zaxis);
 
-	return;
+  	zaxis = -zaxis;
+
+  	glm::mat3 viewMatrix = glm::mat3(
+		glm::vec3(xaxis.x, xaxis.y, xaxis.z),
+		glm::vec3(yaxis.x, yaxis.y, yaxis.z),
+		glm::vec3(zaxis.x, zaxis.y, zaxis.z)
+	);
+
+    return viewMatrix;
 }
 
 void draw(DrawingWindow &window, std::vector<ModelTriangle> triangles) {
@@ -380,11 +399,15 @@ void draw(DrawingWindow &window, std::vector<ModelTriangle> triangles) {
 		for (int j=0; j <HEIGHT; j++)
 			depthBuffer[i][j] = 0.0;
 
-	float focalLength = camPos[2]/2;
+	float focalLength = 1.25;
 	renderTriangles(triangles, camPos, focalLength, window);
 	window.renderFrame();
-	//glm::mat3 matX = yRotationMatrix(0.00174532925);
-	//camPos = matX*camPos;
+
+	if (orbit){
+		glm::mat3 matX = yRotationMatrix(0.0174532925);
+		camPos = matX*camPos;
+		camOrientation = lookAt(glm::vec3(0, 0, 0));
+	}
 }
 
 int main(int argc, char *argv[]) {
