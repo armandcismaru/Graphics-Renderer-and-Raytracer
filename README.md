@@ -1,3 +1,3 @@
-# RedNoiseFirst
+# RedNoiseFirst  
 
-## Computer Graphics coursework (not actually called RedNoiseFirst)
+Computer Graphics coursework (not actually called RedNoiseFirst).
