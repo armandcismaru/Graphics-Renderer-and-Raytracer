@@ -21,7 +21,7 @@
 #define SCALING_CONSTANT 200
 #define THETA 0.261799388
 
-
+int rendering = 0;
 glm::vec3 camPos = glm::vec3(0.0, 0.0, 3.0);
 glm::mat3 camOrientation = glm::mat3(1.0);
 bool orbit = false;
@@ -77,6 +77,10 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 		else if (event.key.keysym.sym == SDLK_RIGHT) camPos[0] -= 0.1;
 		else if (event.key.keysym.sym == SDLK_UP) camPos[1] -= 0.1;
 		else if (event.key.keysym.sym == SDLK_DOWN) camPos[1] += 0.1;
+		else if (event.key.keysym.sym == SDLK_m){
+			rendering += 1;
+			rendering %= 3;
+		}
 		else if (event.key.keysym.sym == SDLK_u){
 			CanvasPoint v0 = CanvasPoint(std::rand()%WIDTH, std::rand()%HEIGHT);
 			CanvasPoint v1 = CanvasPoint(std::rand()%WIDTH, std::rand()%HEIGHT);
@@ -361,7 +365,7 @@ CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 verte
 	float u = focalLength * (adjustedCamera[0]/adjustedCamera[2]) * SCALING_CONSTANT + WIDTH/2;  
 	float v = focalLength * (adjustedCamera[1]/adjustedCamera[2]) * SCALING_CONSTANT + HEIGHT/2;  
 
-	return CanvasPoint(WIDTH-u, v, 1/cameraToVertex[2]);
+	return CanvasPoint(WIDTH-u, v, 1/(cameraToVertex[2]));
 }
 
 void renderTriangles(std::vector<ModelTriangle> triangles, glm::vec3 cameraPosition, float focalLength, DrawingWindow &window){
@@ -373,8 +377,10 @@ void renderTriangles(std::vector<ModelTriangle> triangles, glm::vec3 cameraPosit
 			cPoints[j] = getCanvasIntersectionPoint(cameraPosition, triangle.vertices[j], focalLength);
 		}
 		CanvasTriangle strokedTriangle = CanvasTriangle(cPoints[0], cPoints[1], cPoints[2]);
-		drawFilled(window, strokedTriangle, triangle.colour);
-		//drawStroked(window, strokedTriangle, Colour(0,0,0));
+		switch (rendering){
+			case 1: drawFilled(window, strokedTriangle, triangle.colour); break;
+			case 2: drawStroked(window, strokedTriangle, triangle.colour); break;
+		}
 	}
 }
 
@@ -394,13 +400,13 @@ glm::mat3 lookAt(glm::vec3 point){
     return viewMatrix;
 }
 
-void draw(DrawingWindow &window, std::vector<ModelTriangle> triangles) {
+void drawRasterised(DrawingWindow &window, std::vector<ModelTriangle> triangles) {
 	window.clearPixels();
 	for (int i=0; i <WIDTH; i++)
 		for (int j=0; j <HEIGHT; j++)
 			depthBuffer[i][j] = 0.0;
 
-	float focalLength = 1.25;
+	float focalLength = 1.5;
 	renderTriangles(triangles, camPos, focalLength, window);
 	window.renderFrame();
 
@@ -411,9 +417,9 @@ void draw(DrawingWindow &window, std::vector<ModelTriangle> triangles) {
 	}
 }
 
-RayTriangleIntersection getClosestIntersection(std::vector<ModelTriangle> triangles, glm::vec3 cameraPosition, glm::vec3 rayDirection){
+std::vector<RayTriangleIntersection> getClosestIntersection(std::vector<ModelTriangle> triangles, glm::vec3 cameraPosition, glm::vec3 rayDirection){
 	float tDist = INT32_MAX;
-	RayTriangleIntersection closestIntersection = RayTriangleIntersection();
+	std::vector<RayTriangleIntersection> closestIntersection;
 
 	for (int i = 0; i < triangles.size(); i++){
 		ModelTriangle triangle = triangles[i];
@@ -428,35 +434,67 @@ RayTriangleIntersection getClosestIntersection(std::vector<ModelTriangle> triang
 		float v = possibleSolution[2];
 
 		if ((u >= 0.0 && u <= 1.0) && (v >= 0.0 && v <= 1.0) && (u + v <= 1.0)){
-			if (t < tDist && t > 0) {
+			if (t < tDist && t > 0.00001) {
 				tDist = t;
 				glm::vec3 point = triangle.vertices[0] + u * e0 + v * e1;
-				closestIntersection = RayTriangleIntersection(point, t, triangle, i);
+				//glm::vec3 point = camPos + rayDirection * t;
+				closestIntersection.push_back(RayTriangleIntersection(point, t, triangle, i));
 			}
 		}
 	}
 	return closestIntersection;
 }
 
-void drawRasterisedScene(DrawingWindow &window, std::vector<ModelTriangle> triangles){
+void printIntersections(std::vector<RayTriangleIntersection> inter){
+	for (int i=0; i < inter.size(); i++)
+		std::cout << inter[i].intersectedTriangle.colour << '\n';
+	std::cout << '\n';
+}
+
+bool intersectionHas(std::vector<RayTriangleIntersection> inter, std::string s){
+	for (int i=0; i < inter.size(); i++)
+		if (inter[i].intersectedTriangle.colour.name == s)
+			return true;
+	return false;
+}
+
+void drawRayTraced(DrawingWindow &window, std::vector<ModelTriangle> triangles){
 	window.clearPixels();
-	float focalLength = 2.0;
+	float focalLength = 1.5;
+	glm::vec3 light = glm::vec3(0.0, 0.45, 0.0);
 
 	for (int i=0; i <WIDTH; i++)
 		for (int j=0; j <HEIGHT; j++)
 			{
 				float x = ((i - WIDTH/2) / (SCALING_CONSTANT * 1.0));   
 				float y = (((HEIGHT-j) - HEIGHT/2)/ (SCALING_CONSTANT * 1.0));
+				bool isShadow = false;
+				std::vector<RayTriangleIntersection> lightPoints;
 
 				glm::vec3 spacePoint = glm::vec3(x, y ,-focalLength);
-				RayTriangleIntersection closestPoint = getClosestIntersection(triangles, camPos, spacePoint-camPos);
-		
-				if (closestPoint.distanceFromCamera){
-					Colour c =  closestPoint.intersectedTriangle.colour;
+				std::vector<RayTriangleIntersection> closestPoint = getClosestIntersection(triangles, camPos, glm::normalize(spacePoint-camPos));
+				
+				if (!closestPoint.empty()){
+					int t = closestPoint.back().triangleIndex;
+					glm::vec3 point = closestPoint.back().intersectionPoint;
+					lightPoints = getClosestIntersection(triangles, point, glm::normalize(light-point));
+
+					if (!lightPoints.empty() && intersectionHas(lightPoints, "White")){
+						int shadow_t = lightPoints.back().triangleIndex;
+
+						if (t == shadow_t && lightPoints[lightPoints.size()-2].intersectedTriangle.colour.name != "White"){
+							isShadow = true;
+						}
+						if (lightPoints.back().intersectedTriangle.colour.name != "White" && t != shadow_t) {
+							isShadow = true;
+						}
+					}
+					Colour c =  triangles[t].colour;
 					uint32_t colour = (255 << 24) + (c.red << 16) + (c.green << 8) + c.blue;
+					if (isShadow) colour = (0 << 24) + (0 << 16) + (0 << 8) + 0;
 					window.setPixelColour(i, j, colour);
 				}
-			}
+		}
 	window.renderFrame();
 
 	if (orbit){
@@ -477,7 +515,11 @@ int main(int argc, char *argv[]) {
 	while (true) {
 		if (window.pollForInputEvents(event))
 			handleEvent(event, window);
-		//draw(window, triangles);
-		drawRasterisedScene(window, triangles);
+		
+		switch (rendering) {
+			case 0: drawRayTraced(window, triangles); break;
+			case 1: drawRasterised(window, triangles); break;
+			case 2: drawRasterised(window, triangles); break;
+		}
 	}
 }
