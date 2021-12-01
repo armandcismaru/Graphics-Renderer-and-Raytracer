@@ -13,3 +13,7 @@ struct Colour {
 };
 
 std::ostream &operator<<(std::ostream &os, const Colour &colour);
+
+//std::array<glm::vec3, 3> norms = {normals[xn], normals[yn], normals[zn]};
+// faceNormals.push_back(norms);
+// std::vector<std::array<glm::vec3, 3>> faceNormals;
