@@ -4,6 +4,7 @@
 #include <CanvasTriangle.h>
 #include <ModelTriangle.h>
 #include <RayTriangleIntersection.h>
+#include <TextureMap.h>
 #include <Colour.h>
 #include <Utils.h>
 #include <fstream>
@@ -26,6 +27,7 @@
 float pi = 2 * acos(0.0);
 int rendering = 0;
 bool orbit = false;
+bool drawTexture = true;
 
 glm::mat3 camOrientation = glm::mat3(1.0);
 //glm::vec3 camPos = glm::vec3(0.0, 0.0, 3.0);
@@ -36,6 +38,7 @@ glm::vec3 light = glm::vec3(0.3, 0.35, 0.5);
 
 std::array<std::array<float, HEIGHT>, WIDTH> depthBuffer;
 std::vector<std::array<glm::vec3, 3>> faceNormals;
+TextureMap texture = TextureMap("texture.ppm");
 
 void drawStroked(DrawingWindow &window, CanvasTriangle triangle, Colour c);
 void drawFilled(DrawingWindow &window, CanvasTriangle triangle, Colour c);
@@ -67,6 +70,44 @@ std::vector<glm::vec3> interpolateThreeElementValues(glm::vec3 from, glm::vec3 t
 		result.push_back(triple);
 	}
 	return result;
+}
+
+uint32_t getTextureColour(int x, int y){
+	int width = texture.width;
+	int height = texture.height;
+
+	for (int h = 0; h < height; h++){
+		int ind = h * width;
+		for (int w = 0; w < width; w++)
+			if (h == y && w == x) 
+				return texture.pixels[ind+w];
+	}	
+	return 0;
+}
+
+void mapTexture(DrawingWindow &window){
+	window.clearPixels();
+	
+	CanvasPoint p1 = CanvasPoint(160, 10);
+	p1.texturePoint = TexturePoint(195, 5);
+
+	CanvasPoint p2 = CanvasPoint(300, 230);
+	p2.texturePoint = TexturePoint(395, 380);
+
+	CanvasPoint p3 = CanvasPoint(10, 150);
+	p3.texturePoint = TexturePoint(65,330);
+
+	CanvasTriangle triangle = CanvasTriangle(p1, p2, p3);
+	drawFilled(window, triangle, Colour("Red", 201, 22, 22));
+	drawStroked(window, triangle, Colour(255, 255, 255));
+	window.renderFrame();
+}
+
+float ratioOfPointOnLine(CanvasPoint p1, CanvasPoint p2, CanvasPoint point){
+	float d12 = sqrt((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y));
+	float d1point = sqrt((p1.x - point.x) * (p1.x - point.x) + (p1.y - point.y) * (p1.y - point.y));
+
+	return d1point/d12;
 }
 
 void drawRGB(DrawingWindow &window)
@@ -241,14 +282,21 @@ void drawLine(CanvasPoint from, CanvasPoint to, Colour c, DrawingWindow &window)
 		glm::vec3(ceil(to.x), to.y, to.depth),
 		numberOfSteps + 1);
 
+	std::vector<float> textureXs = interpolateSingleFloats(floor(from.texturePoint.x), ceil(to.texturePoint.x), numberOfSteps+1);
+	std::vector<float> textureYs = interpolateSingleFloats(floor(from.texturePoint.y), ceil(to.texturePoint.y), numberOfSteps+1);
+
 	for (int i = 0; i < values.size(); i++)
 	{
 		int x = values[i][0];
 		int y = round(values[i][1]);
 		float depth = values[i][2];
 		float a, b;
+		uint32_t colour = 0;
 
-		uint32_t colour = (255 << 24) + (c.red << 16) + (c.green << 8) + c.blue;
+		if (drawTexture == true)
+			colour = getTextureColour(round(textureXs[i]), round(textureYs[i]));
+		else 
+			colour = (255 << 24) + (c.red << 16) + (c.green << 8) + c.blue;
 
 		if (depth < 0 && depthBuffer[x][y] < 0)
 		{
@@ -272,6 +320,7 @@ void drawLine(CanvasPoint from, CanvasPoint to, Colour c, DrawingWindow &window)
 
 void drawStroked(DrawingWindow &window, CanvasTriangle triangle, Colour c)
 {
+	drawTexture = false;
 	drawLine(triangle.v0(), triangle.v1(), c, window);
 	drawLine(triangle.v0(), triangle.v2(), c, window);
 	drawLine(triangle.v1(), triangle.v2(), c, window);
@@ -289,9 +338,23 @@ void fillTopFlat(DrawingWindow &window, CanvasPoint v1, CanvasPoint v2, CanvasPo
 	float depthLeft = v3.depth;
 	float depthRight = v3.depth;
 
+	std::vector<glm::vec3> textureCoords = interpolateThreeElementValues(
+		glm::vec3(v3.texturePoint.y, v3.texturePoint.x, v3.texturePoint.x),
+		glm::vec3(v2.texturePoint.y, v1.texturePoint.x, v2.texturePoint.x),
+		(int)v3.y-v1.y+1
+	);
+
+	int k = 0;
 	for (int y = v3.y; y >= v1.y; y--)
 	{
-		drawLine(CanvasPoint(lineLeft, y, depthLeft), CanvasPoint(lineRight, y, depthRight), c, window);
+		CanvasPoint left = CanvasPoint(lineLeft, y, depthLeft);
+		CanvasPoint right = CanvasPoint(lineRight, y, depthRight);
+		
+		left.texturePoint = TexturePoint(textureCoords[k][1], textureCoords[k][0]);
+		right.texturePoint = TexturePoint(textureCoords[k][2], textureCoords[k][0]);
+		k += 1;
+
+		drawLine(left, right, c, window);
 		lineLeft -= invSlope1;
 		lineRight -= invSlope2;
 		depthLeft -= invSlopeD1;
@@ -311,9 +374,23 @@ void fillBottomFlat(DrawingWindow &window, CanvasPoint v1, CanvasPoint v2, Canva
 	float depthLeft = v1.depth;
 	float depthRight = v1.depth;
 
+	std::vector<glm::vec3> textureCoords = interpolateThreeElementValues(
+		glm::vec3(v1.texturePoint.y, v1.texturePoint.x, v1.texturePoint.x),
+		glm::vec3(v2.texturePoint.y, v2.texturePoint.x, v3.texturePoint.x),
+		(int)v2.y-v1.y+1
+	);
+
+	int k = 0;
 	for (int y = v1.y; y <= v2.y; y++)
 	{
-		drawLine(CanvasPoint(lineLeft, y, depthLeft), CanvasPoint(lineRight, y, depthRight), c, window);
+		CanvasPoint left = CanvasPoint(lineLeft, y, depthLeft);
+		CanvasPoint right = CanvasPoint(lineRight, y, depthRight);
+
+		left.texturePoint = TexturePoint(textureCoords[k][1], textureCoords[k][0]);
+		right.texturePoint = TexturePoint(textureCoords[k][2], textureCoords[k][0]);
+		k += 1;
+
+		drawLine(left, right, c, window);
 		lineLeft += invSlope1;
 		lineRight += invSlope2;
 		depthLeft += invSlopeD1;
@@ -323,6 +400,8 @@ void fillBottomFlat(DrawingWindow &window, CanvasPoint v1, CanvasPoint v2, Canva
 
 void drawFilled(DrawingWindow &window, CanvasTriangle triangle, Colour c)
 {
+	drawTexture = true;
+
 	for (int i = 0; i < 2; i++)
 		for (int j = i + 1; j < 3; j++)
 			if (triangle[i].y > triangle[j].y)
@@ -339,10 +418,15 @@ void drawFilled(DrawingWindow &window, CanvasTriangle triangle, Colour c)
 	else
 	{
 		float v3x = triangle.v0().x + ((triangle.v1().y - triangle.v0().y) / (triangle.v2().y - triangle.v0().y)) * (triangle.v2().x - triangle.v0().x);
-
 		float v3depth = triangle.v0().depth + ((triangle.v1().y - triangle.v0().y) / (triangle.v2().y - triangle.v0().y)) * (triangle.v2().depth - triangle.v0().depth);
-
 		CanvasPoint v3 = CanvasPoint(v3x, triangle.v1().y, v3depth);
+
+		float ratio = ratioOfPointOnLine(triangle.v0(), triangle.v2(), v3);
+		
+		float v3textureX = (triangle.v2().texturePoint.x - triangle.v0().texturePoint.x)*ratio + triangle.v0().texturePoint.x;
+		float v3textureY = (triangle.v2().texturePoint.y - triangle.v0().texturePoint.y)*ratio + triangle.v0().texturePoint.y;
+		v3.texturePoint = TexturePoint(v3textureX, v3textureY);
+
 		fillBottomFlat(window, triangle.v0(), triangle.v1(), v3, c);
 		fillTopFlat(window, triangle.v1(), v3, triangle.v2(), c);
 	}
@@ -513,6 +597,7 @@ void drawRasterised(DrawingWindow &window, std::vector<ModelTriangle> triangles)
 	}
 }
 
+glm::vec3 barycentric(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 point);
 std::vector<RayTriangleIntersection> getClosestIntersection(std::vector<ModelTriangle> triangles, glm::vec3 cameraPosition, glm::vec3 rayDirection)
 {
 	float tDist = INT32_MAX;
@@ -537,7 +622,6 @@ std::vector<RayTriangleIntersection> getClosestIntersection(std::vector<ModelTri
 			{
 				tDist = t;
 				glm::vec3 point = triangle.vertices[0] + u * e0 + v * e1;
-				// glm::vec3 point = camPos + rayDirection * t;
 				closestIntersection.push_back(RayTriangleIntersection(point, t, triangle, i));
 			}
 		}
@@ -603,17 +687,33 @@ glm::vec3 barycentric(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 point)
 float normalBrightness (glm::vec3 point, glm::vec3 normal, bool isShadow)
 {
 	float brightness = getBrightness(point);
-	float angle = abs(glm::dot(normal, glm::normalize(light-point)));
+	float angle = glm::dot(normal, glm::normalize(light-point));
 	
 	float coef = 2 * glm::dot(glm::normalize(light-point), normal);
 	glm::vec3 reflection = glm::normalize(light-point) - coef * normal;
 	float spread = std::pow(glm::dot(glm::normalize(camPos-point), reflection), 256) ;
 
-	float multiplier = brightness * angle + brightness * abs(spread) + 0.2f;
-	//float multiplier = std::max(brightness * angle + brightness * abs(spread), 0.2f);
+	float multiplier;
+	if (angle < 0) 
+		multiplier = 0.1f;
+	else 
+		multiplier = 0.8 * brightness * angle + 0.2 * brightness * abs(spread) + 0.1f;
+	
 	if (isShadow) multiplier = brightness * angle * 0.5;
 
 	return multiplier;
+}
+
+float phongBrightness(glm::vec3 point, ModelTriangle &triangle, int index)
+{
+	glm::vec3 normal1 = faceNormals[index][0];
+	glm::vec3 normal2 = faceNormals[index][1];
+	glm::vec3 normal3 = faceNormals[index][2];
+
+	glm::vec3 bary = barycentric(triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], point);
+	glm::vec3 interpolatedNormal = bary[0] * normal1 + bary[1] * normal2 + bary[2] * normal3;
+
+	return normalBrightness(point, glm::normalize(interpolatedNormal), false);
 }
 
 float gouraudBrightness(glm::vec3 point, ModelTriangle &triangle, int index)
@@ -628,9 +728,9 @@ float gouraudBrightness(glm::vec3 point, ModelTriangle &triangle, int index)
 	float b2 = getBrightness(triangle.vertices[1]);
 	float b3 = getBrightness(triangle.vertices[2]);
 
-	float angle1 = abs(glm::dot(normal1, glm::normalize(light-triangle.vertices[0]))); 
-	float angle2 = abs(glm::dot(normal2, glm::normalize(light-triangle.vertices[1]))); 
-	float angle3 = abs(glm::dot(normal3, glm::normalize(light-triangle.vertices[2]))); 
+	float angle1 = glm::dot(normal1, glm::normalize(light-triangle.vertices[0])); 
+	float angle2 = glm::dot(normal2, glm::normalize(light-triangle.vertices[1])); 
+	float angle3 = glm::dot(normal3, glm::normalize(light-triangle.vertices[2])); 
 
 	float coef1 = 2 * glm::dot(glm::normalize(light-triangle.vertices[0]), normal1);
 	float coef2 = 2 * glm::dot(glm::normalize(light-triangle.vertices[1]), normal2);
@@ -644,9 +744,21 @@ float gouraudBrightness(glm::vec3 point, ModelTriangle &triangle, int index)
 	float spread2 = std::pow(glm::dot(glm::normalize(camPos-triangle.vertices[1]), reflection2), 256);
 	float spread3 = std::pow(glm::dot(glm::normalize(camPos-triangle.vertices[2]), reflection3), 256);
 
-	float m1 = b1 * angle1 + b1 * abs(spread1) + 0.3f;
-	float m2 = b2 * angle2 + b2 * abs(spread2) + 0.3f;
-	float m3 = b3 * angle3 + b3 * abs(spread3) + 0.3f;
+	float m1, m2, m3;
+	if (angle1 < 0) 
+		m1 = 0.1f;
+	else 
+		m1 = 0.8 * b1 * angle1 + 0.2 * b1 * abs(spread1) + 0.1f;
+
+	if (angle2 < 0) 
+		m2 = 0.1f;
+	else 
+		m2 = 0.8 * b2 * angle2 + 0.2 * b2 * abs(spread2) + 0.1f;
+	
+	if (angle3 < 0) 
+		m3 = 0.1f;
+	else 
+		m3 = 0.8 * b3 * angle3 + 0.2 * b3 * abs(spread3) + 0.1f;
 
 	return bary[0] * m1 + bary[1] * m2 + bary[2] * m3;
 }
@@ -673,14 +785,15 @@ void drawRayTraced(DrawingWindow &window, std::vector<ModelTriangle> triangles)
 				ModelTriangle triangle = closestPoint.back().intersectedTriangle;
 				int t = closestPoint.back().triangleIndex;
 
-				float m = std::min(gouraudBrightness(point, triangle, t), 1.0f);
+				float m = std::min(phongBrightness(point, triangle, t), 1.0f);
+				//float m = std::min(gouraudBrightness(point, triangle, t), 10.0f);
 				//float m = std::min(normalBrightness(point, triangles[t].normal, isShadow(point, triangles, t)), 1.0f);
-
+		
 				Colour c = triangles[t].colour;
 				uint32_t colour = (255 << 24) +
-					(int(c.red * m) % 256 << 16) +
-					(int(c.green * m) % 256 << 8) +
-					int(c.blue * m) % 256;
+					(int(c.red * m) << 16) +
+					(int(c.green * m) << 8) +
+					int(c.blue * m);
 
 				window.setPixelColour(i, j, colour);
 			}
@@ -705,12 +818,14 @@ int main(int argc, char *argv[])
 	std::map<std::string, Colour> colours;
 	std::vector<ModelTriangle> triangles = readOBJ("sphere.obj", colours, window);
 
+	mapTexture(window);
+
 	while (true)
 	{
 		if (window.pollForInputEvents(event))
 			handleEvent(event, window);
 
-		switch (rendering)
+		/*switch (rendering)
 		{
 		case 0:
 			drawRayTraced(window, triangles);
@@ -721,6 +836,7 @@ int main(int argc, char *argv[])
 		case 2:
 			drawRasterised(window, triangles);
 			break;
-		}
+		}*/
+		window.renderFrame();
 	}
 }
