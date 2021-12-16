@@ -277,7 +277,7 @@ void drawLine(CanvasPoint from, CanvasPoint to, Colour c, DrawingWindow &window)
 {
 	int xDiff = round(to.x - from.x);
 	int yDiff = round(to.y - from.y);
-	int numberOfSteps = std::max(abs(xDiff), abs(yDiff));
+	int numberOfSteps = std::max(fabs(xDiff), fabs(yDiff));
 
 	std::vector<glm::vec3> values = interpolateThreeElementValues(
 		glm::vec3(floor(from.x), from.y, from.depth),
@@ -309,8 +309,8 @@ void drawLine(CanvasPoint from, CanvasPoint to, Colour c, DrawingWindow &window)
 
 			if (depth < 0 && depthBuffer[x][y] < 0)
 			{
-				a = abs(depth);
-				b = abs(depthBuffer[x][y]);
+				a = fabs(depth);
+				b = fabs(depthBuffer[x][y]);
 			}
 			else
 			{
@@ -320,13 +320,13 @@ void drawLine(CanvasPoint from, CanvasPoint to, Colour c, DrawingWindow &window)
 
 			/*if (depth < 0 && depthBuffer[x][y] > 0)
 			{
-				a = abs(depth);
+				a = fabs(depth);
 				b = -depthBuffer[x][y];
 			}
 			if (depth > 0 && depthBuffer[x][y] < 0)
 			{
 				a = -depth;
-				b = abs(depthBuffer[x][y]);
+				b = fabs(depthBuffer[x][y]);
 			}*/
 			
 			if (a >= b || depthBuffer[x][y] == 0)
@@ -737,7 +737,7 @@ float isShadow(glm::vec3 point, std::vector<ModelTriangle> triangles, int index)
 		std::vector<RayTriangleIntersection> lightPoints = getClosestIntersection(triangles, point, glm::normalize(lights[i] - point));
 		std::string lightcol = getClosestIntersection(triangles, lights[i], glm::vec3(0, 1, 0)).back().intersectedTriangle.colour.name;
 		
-		if (!lightPoints.empty() && (intersectionHas(lightPoints, lightcol)) && abs((lights[i]-point).y) > 0.1)
+		if (!lightPoints.empty() && (intersectionHas(lightPoints, lightcol)) && fabs((lights[i]-point).y) > 0.1)
 		{
 			int shadow_index = lightPoints.back().triangleIndex;
 			if (index == shadow_index && lightPoints[lightPoints.size() - 2].intersectedTriangle.colour.name != lightcol)
@@ -779,7 +779,7 @@ glm::vec3 barycentric(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 point)
 float normalBrightness (glm::vec3 point, glm::vec3 normal, float shadow)
 {
 	float brightness = getBrightness(point);
-	float angle = abs(glm::dot(normal, glm::normalize(light-point)));
+	float angle = fabs(glm::dot(normal, glm::normalize(light-point)));
 	//float angle = glm::dot(normal, glm::normalize(light-point)); SPHERE
 	
 	float coef = 2 * glm::dot(glm::normalize(light-point), normal);
@@ -790,7 +790,7 @@ float normalBrightness (glm::vec3 point, glm::vec3 normal, float shadow)
 	/*if (angle < 0) 
 		multiplier = 0.1f; SPHERE
 	else */
-		multiplier = 0.8 * brightness * angle + 0.2 * brightness * abs(spread) + 0.2f;
+		multiplier = 0.8 * brightness * angle + 0.2 * brightness * fabs(spread) + 0.2f;
 	
 	if (shadow != 36) multiplier = multiplier * shadow + 0.1f;
 
@@ -841,17 +841,17 @@ float normalBrightness (glm::vec3 point, glm::vec3 normal, float shadow)
 	if (angle1 < 0) 
 		m1 = 0.1f;
 	else 
-		m1 = 0.8 * b1 * angle1 + 0.2 * b1 * abs(spread1) + 0.1f;
+		m1 = 0.8 * b1 * angle1 + 0.2 * b1 * fabs(spread1) + 0.1f;
 
 	if (angle2 < 0) 
 		m2 = 0.1f;
 	else 
-		m2 = 0.8 * b2 * angle2 + 0.2 * b2 * abs(spread2) + 0.1f;
+		m2 = 0.8 * b2 * angle2 + 0.2 * b2 * fabs(spread2) + 0.1f;
 	
 	if (angle3 < 0) 
 		m3 = 0.1f;
 	else 
-		m3 = 0.8 * b3 * angle3 + 0.2 * b3 * abs(spread3) + 0.1f;
+		m3 = 0.8 * b3 * angle3 + 0.2 * b3 * fabs(spread3) + 0.1f;
 
 	return bary[0] * m1 + bary[1] * m2 + bary[2] * m3;
 }*/
@@ -864,7 +864,7 @@ Colour reflectedColour(glm::vec3 point, glm::vec3 normal, std::vector<ModelTrian
 	float coef = 2 * glm::dot(glm::normalize(camPos-point), normal);
 	glm::vec3 reflection = glm::normalize(camPos-point) - coef * normal;
 
-	std::vector<RayTriangleIntersection> mirrorPoint = getClosestIntersection(triangles, point, abs(reflection));
+	std::vector<RayTriangleIntersection> mirrorPoint = getClosestIntersection(triangles, point, fabs(reflection));
 	depth += 1;
 
 	if (!mirrorPoint.empty()){
@@ -911,7 +911,7 @@ uint32_t getTexturePoint(ModelTriangle triangle, glm::vec3 point, int j, int tIn
 
 	float c = ((c0/z0)*(1-q) + (c1/z1)*q) / ((1/z0)*(1-q) + (1/z1)*q);
 	//std::cout << c << " " << bary[1] <<  " " << texture.height <<'\n';
-	//return getTextureColour(round(textureX), (int)round(abs(c)) % 395);
+	//return getTextureColour(round(textureX), (int)round(fabs(c)) % 395);
 	return getTextureColour(round(textureX), round(textureY));
 }
 
