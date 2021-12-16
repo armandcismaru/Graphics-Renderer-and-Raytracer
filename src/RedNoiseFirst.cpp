@@ -864,7 +864,12 @@ Colour reflectedColour(glm::vec3 point, glm::vec3 normal, std::vector<ModelTrian
 	float coef = 2 * glm::dot(glm::normalize(camPos-point), normal);
 	glm::vec3 reflection = glm::normalize(camPos-point) - coef * normal;
 
-	std::vector<RayTriangleIntersection> mirrorPoint = getClosestIntersection(triangles, point, fabs(reflection));
+	reflection.x = fabs(reflection.x);
+	reflection.y = fabs(reflection.y);
+	reflection.z = fabs(reflection.z);
+	
+	std::vector<RayTriangleIntersection> mirrorPoint = getClosestIntersection(triangles, point, reflection);
+
 	depth += 1;
 
 	if (!mirrorPoint.empty()){
