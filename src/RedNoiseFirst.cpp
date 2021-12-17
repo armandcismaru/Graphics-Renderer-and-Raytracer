@@ -29,18 +29,21 @@ int rendering = 0;
 bool orbit = false;
 
 /* FOR DISPLAYING SPHERE SET:
-	- set isSphere TRUE AND drawTexture FALSE 
-	- UNCOMMENT light and camPos below for SPHERE and COMMENT for CORNELL BOX
-	- go to line 516 and check instructions
-	- check shading at 982
+	- set isSphere TRUE AND drawTexture FALSE (lines 45-46)
+	- UNCOMMENT light and camPos below for SPHERE and COMMENT for CORNELL BOX (lines 50-55)
+	- go to line 527 and check instructions
+	- check shading at line 988
+
+	Do the reverse for switching back to Cornell
 */
 
-// FOR CORNELL BOX BACK DO THE OPPOSITE 
+/* To test Gouraud and Phong the Sphere model has to be used */
+
 // FOR DISPLAYING CORNELL BOX SET isSphere TO FALSE
 // FOR DISPLAYING TEXTURES IN CORNELL BOX SET drawtexture TO TRUE
 
 bool isSphere = false; // SPHERE
-bool drawTexture = true ; // TEXTURE
+bool drawTexture = false ; // TEXTURE
 
 glm::mat3 camOrientation = glm::mat3(1.0);
 
@@ -535,24 +538,24 @@ std::vector<ModelTriangle> readOBJ(std::string fileName, std::map<std::string, C
 					yt = std::stoi(indices2[1]) - 1;
 					zt = std::stoi(indices3[1]) - 1;
 				}
-				else {
-				// ---------------------------------------------------------------------------
+				else { 
+				// -------------------------------------------------------------------------------------
 					for (int i = 1; i <= 3; i++)
 						ind[i].erase(std::remove(ind[i].begin(), ind[i].end(), '/'), ind[i].end());
 
-					// CORNELL BOX - UNCOMMENT FOR CORNELL BOX COMMENT FOR SPHERE --------------------
+					// CORNELL BOX - COMMENT FOR SPHERE, UNCOMMENT FOR CORNELL BOX ---------------------
 					xn = std::stoi(ind[1]) - 1;
 					yn = std::stoi(ind[2]) - 1;
 					zn = std::stoi(ind[3]) - 1;
-					// -------------------------------------------------------------------------
+					// ----------------------------------------------------------------------------------
 				
-					// SPHERE - UNCOMMENT THIS CHUNK FOR SPHERE -----------------------
+					// SPHERE - UNCOMMENT THIS CHUNK FOR SPHERE, COMMENT FOR CORNELL BOX ----------------
 					/*xn = std::stoi(ind[1].substr(0, ind[1].size()/2)) - 1;
 					yn = std::stoi(ind[2].substr(0, ind[2].size()/2)) - 1;
 					zn = std::stoi(ind[3].substr(0, ind[3].size()/2)) - 1;
 					std::array<glm::vec3, 3> norms = {normals[xn], normals[yn], normals[zn]};
 					faceNormals.push_back(norms); */
-					// ----------------------------------------------------------------
+					// -----------------------------------------------------------------------------------
 
 				} // FOR SPHERE COMMENT THIS LINE , CORNELL BOX UNCOMMENT
 
