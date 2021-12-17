@@ -28,16 +28,18 @@ float pi = 2 * acos(0.0);
 int rendering = 0;
 bool orbit = false;
 
-/* FOR DISPLAYING SPHERE SET:
-	- set isSphere TRUE AND drawTexture FALSE (lines 45-46)
-	- UNCOMMENT light and camPos below for SPHERE and COMMENT for CORNELL BOX (lines 50-55)
-	- go to line 527 and check instructions
-	- check shading at line 988
+// The default config is Cornell Box, no texture, hard shadows
+
+/* To test Gouraud and Phong the Sphere model has to be used
+
+	FOR DISPLAYING SPHERE SET:
+	- set isSphere TRUE AND drawTexture FALSE (lines 47-48)
+	- UNCOMMENT light and camPos below for SPHERE and COMMENT for CORNELL BOX (lines 53-57)
+	- go to line 532 and check instructions
+	- check shading at line 992
 
 	Do the reverse for switching back to Cornell
 */
-
-/* To test Gouraud and Phong the Sphere model has to be used */
 
 // FOR DISPLAYING CORNELL BOX SET isSphere TO FALSE
 // FOR DISPLAYING TEXTURES IN CORNELL BOX SET drawtexture TO TRUE
@@ -524,7 +526,10 @@ std::vector<ModelTriangle> readOBJ(std::string fileName, std::map<std::string, C
 				Colour color = Colour();
 				std::vector<std::string> ind = split(line, ' ');
 
-				// CORNELL BOX - COMMENT THIS CHUNK FOR SPHERE UNCOMMENT FOR CORNELL ---------
+				// Sorry for this being so complicated C++ likes to check the existence of items even if the "if" body is not used
+				// The chunks that have to be commented/uncommented are the ones inside the dash lines ----
+
+				// CORNELL BOX - COMMENT THIS CHUNK FOR SPHERE, UNCOMMENT FOR CORNELL ----------------
 				if (isSphere == false && ind[1].size() > 3) {
 					std::vector<std::string> indices1 = split(ind[1], '/');
 					std::vector<std::string> indices2 = split(ind[2], '/');
@@ -555,9 +560,9 @@ std::vector<ModelTriangle> readOBJ(std::string fileName, std::map<std::string, C
 					zn = std::stoi(ind[3].substr(0, ind[3].size()/2)) - 1;
 					std::array<glm::vec3, 3> norms = {normals[xn], normals[yn], normals[zn]};
 					faceNormals.push_back(norms); */
-					// -----------------------------------------------------------------------------------
+					// ----------------------------------------------------------------------------------
 
-				} // FOR SPHERE COMMENT THIS LINE , CORNELL BOX UNCOMMENT
+				} // FOR SPHERE COMMENT THIS LINE, UNCOMMENT FOR CORNELL BOX
 
 				if (!colours.empty())
 					color = Colour(cur, colours[cur].red, colours[cur].green, colours[cur].blue);
@@ -914,7 +919,7 @@ uint32_t getTexturePoint(ModelTriangle triangle, glm::vec3 point, int j, int tIn
 	float textureX = triangle.texturePoints[0].x * bary[0] + triangle.texturePoints[1].x * bary[1] + triangle.texturePoints[2].x * bary[2];
 	float textureY = triangle.texturePoints[0].y * bary[0] + triangle.texturePoints[1].y * bary[1] + triangle.texturePoints[2].y * bary[2];
 	
-	// ATTEMPT TO DO CORRECTED PERSPECTIVE, UNCOMMENT FOR CHECKING IT WHEN TEXTURING ------
+	// ATTEMPT TO DO CORRECTED PERSPECTIVE (Partly successful), UNCOMMENT FOR CHECKING IT WHEN TEXTURING ------
 	/*float mini = INT32_MAX;
 	float maxi = -100;
 	int indmin, indmax;
@@ -939,11 +944,12 @@ uint32_t getTexturePoint(ModelTriangle triangle, glm::vec3 point, int j, int tIn
 
 	float c = ((c0/z0)*(1-q) + (c1/z1)*q) / ((1/z0)*(1-q) + (1/z1)*q);
 	textureY = (int)round(fabs(c)) % 395;*/
-	// --------------------------------------------------------------------------------------
+	// ------------------------------------------------------------------------------------------------------------
 
 	return getTextureColour(round(textureX), round(textureY));
 }
 
+// To be ignored
 /*void calculateFaceNormals(std::vector<ModelTriangle> triangles){
 	for (int i=0; i < triangles.size(); i++){
 		ModelTriangle triangle = triangles[i];
@@ -1027,7 +1033,7 @@ void drawRayTraced(DrawingWindow &window, std::vector<ModelTriangle> triangles)
 			camOrientation = lookAt(glm::vec3(0, 0, 0));
 			// ----------------------------------------
 
-			// CODE FOR MULTIWAYPOINT - UNCOMMENT TO MAKE IT WORK AND COMMENT ABOVE
+			// CODE FOR MULTIWAYPOINT - UNCOMMENT TO MAKE IT WORK AND COMMENT ABOVE ----------------
 			/*if (count == 152) orbit = false;
 			if (count < 16){
 				camPos.x -= 0.1;
@@ -1049,7 +1055,7 @@ void drawRayTraced(DrawingWindow &window, std::vector<ModelTriangle> triangles)
 				camPos.x -= 0.1;
 				count ++;
 			}*/
-			//
+			// --------------------------------------------------------------------------------------
 		}
 		else
 			light.x -= 0.01;
@@ -1064,9 +1070,11 @@ int main(int argc, char *argv[])
 	std::string filename;
 
 	std::map<std::string, Colour> colours;
+
 	if (isSphere)
 		filename = "sphere.obj";
-	else {
+	else
+	{
 		filename = "cornell-box.obj"; 
 		colours = readMTL("cornell-box.mtl");
 	}
