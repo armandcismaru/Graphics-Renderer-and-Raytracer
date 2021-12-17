@@ -27,22 +27,32 @@
 float pi = 2 * acos(0.0);
 int rendering = 0;
 bool orbit = false;
-bool drawTexture = false;
+
+/* FOR DISPLAYING SPHERE SET:
+	- set isSphere TRUE AND drawTexture FALSE 
+	- UNCOMMENT light and camPos below for SPHERE and COMMENT for CORNELL BOX
+	- go to line 516 and check instructions
+	- check shading at 982
+*/
+
+// FOR CORNELL BOX BACK DO THE OPPOSITE 
+// FOR DISPLAYING CORNELL BOX SET isSphere TO FALSE
+// FOR DISPLAYING TEXTURES IN CORNELL BOX SET drawtexture TO TRUE
+
+bool isSphere = false; // SPHERE
+bool drawTexture = false ; // TEXTURE
 
 glm::mat3 camOrientation = glm::mat3(1.0);
 
-// CORNELL BOX
-glm::vec3 camPos = glm::vec3(0.0, 0.0, 3.0);
-//SPHERE
-//glm::vec3 camPos = glm::vec3(0.0, 0.35, 0.7); SPHERE
+// COMMENT OR UNCOMMENT FOR SPHERE CORNELL
+glm::vec3 camPos = glm::vec3(0.0, 0.0, 3.0); // CORNELL BOX
+//glm::vec3 camPos = glm::vec3(0.0, 0.35, 0.7); //SPHERE
 
-// CORNELL BOX
-glm::vec3 light = glm::vec3(0.0, 0.4, 0.00);
-// SPHERE
-//glm::vec3 light = glm::vec3(0.3, 0.35, 0.5);
+glm::vec3 light = glm::vec3(0.0, 0.4, 0.00); // CORNELL BOX
+//glm::vec3 light = glm::vec3(0.3, 0.35, 0.9); // SPHERE
 
 std::array<std::array<float, HEIGHT>, WIDTH> depthBuffer;
-//std::vector<std::array<glm::vec3, 3>> faceNormals;
+std::vector<std::array<glm::vec3, 3>> faceNormals;
 TextureMap texture = TextureMap("texture.ppm");
 
 void drawStroked(DrawingWindow &window, CanvasTriangle triangle, Colour c);
@@ -183,14 +193,23 @@ glm::mat3 yRotationMatrix(float theta)
 	return mat;
 }
 
+/* 
+	Use the controllers as following:
+	- arrow keys for mobing the camera around
+	- press p for starting orbit/light moving on sphere/ident
+	- scroll up/down for moving camera into z axis
+	- use i, j, k, l for moving light
+	- use q, e, w, s for rotating model
+	- use m for switching between models
+	- click for capturing image
+*/
+
 void handleEvent(SDL_Event event, DrawingWindow &window)
 {
 	if (event.type == SDL_KEYDOWN)
 	{
-		if (event.key.keysym.sym == SDLK_LEFT){
+		if (event.key.keysym.sym == SDLK_LEFT)
 			camPos[0] += 0.1;
-			camOrientation = lookAt(glm::vec3(0, 0, 0));
-		}
 		else if (event.key.keysym.sym == SDLK_RIGHT)
 			camPos[0] -= 0.1;
 		else if (event.key.keysym.sym == SDLK_UP)
@@ -317,17 +336,6 @@ void drawLine(CanvasPoint from, CanvasPoint to, Colour c, DrawingWindow &window)
 				a = depth;
 				b = depthBuffer[x][y];
 			}
-
-			/*if (depth < 0 && depthBuffer[x][y] > 0)
-			{
-				a = fabs(depth);
-				b = -depthBuffer[x][y];
-			}
-			if (depth > 0 && depthBuffer[x][y] < 0)
-			{
-				a = -depth;
-				b = fabs(depthBuffer[x][y]);
-			}*/
 			
 			if (a >= b || depthBuffer[x][y] == 0)
 			{
@@ -504,8 +512,7 @@ std::vector<ModelTriangle> readOBJ(std::string fileName, std::map<std::string, C
 				ventrices.push_back(glm::vec3(x, y, z));
 			}
 			else if (c[0] == "vt"){
-				texturePoints.push_back(TexturePoint(std::stod(c[1]) * texture.width, std::stod(c[2]) * texture.height));
-				
+				texturePoints.push_back(TexturePoint(std::stod(c[1]) * texture.width, std::stod(c[2]) * texture.height));	
 			}
 			else if (c[0] == "f")
 			{
@@ -514,7 +521,8 @@ std::vector<ModelTriangle> readOBJ(std::string fileName, std::map<std::string, C
 				Colour color = Colour();
 				std::vector<std::string> ind = split(line, ' ');
 
-				if (ind[1].size() > 3) {
+				// CORNELL BOX - COMMENT THIS CHUNK FOR SPHERE UNCOMMENT FOR CORNELL ---------
+				if (isSphere == false && ind[1].size() > 3) {
 					std::vector<std::string> indices1 = split(ind[1], '/');
 					std::vector<std::string> indices2 = split(ind[2], '/');
 					std::vector<std::string> indices3 = split(ind[3], '/');
@@ -528,21 +536,25 @@ std::vector<ModelTriangle> readOBJ(std::string fileName, std::map<std::string, C
 					zt = std::stoi(indices3[1]) - 1;
 				}
 				else {
+				// ---------------------------------------------------------------------------
 					for (int i = 1; i <= 3; i++)
 						ind[i].erase(std::remove(ind[i].begin(), ind[i].end(), '/'), ind[i].end());
-			
-					// CORNELL BOX
+
+					// CORNELL BOX - UNCOMMENT FOR CORNELL BOX COMMENT FOR SPHERE --------------------
 					xn = std::stoi(ind[1]) - 1;
 					yn = std::stoi(ind[2]) - 1;
 					zn = std::stoi(ind[3]) - 1;
+					// -------------------------------------------------------------------------
 				
-					// SPHERE
+					// SPHERE - UNCOMMENT THIS CHUNK FOR SPHERE -----------------------
 					/*xn = std::stoi(ind[1].substr(0, ind[1].size()/2)) - 1;
 					yn = std::stoi(ind[2].substr(0, ind[2].size()/2)) - 1;
 					zn = std::stoi(ind[3].substr(0, ind[3].size()/2)) - 1;
 					std::array<glm::vec3, 3> norms = {normals[xn], normals[yn], normals[zn]};
-					faceNormals.push_back(norms);*/ 
-				}
+					faceNormals.push_back(norms); */
+					// ----------------------------------------------------------------
+
+				} // FOR SPHERE COMMENT THIS LINE , CORNELL BOX UNCOMMENT
 
 				if (!colours.empty())
 					color = Colour(cur, colours[cur].red, colours[cur].green, colours[cur].blue);
@@ -725,15 +737,15 @@ std::vector<glm::vec3> lightPositions(){
 
 float isShadow(glm::vec3 point, std::vector<ModelTriangle> triangles, int index)
 {
-	//std::vector<glm::vec3> lights = lightPositions();
-	std::vector<glm::vec3> lights;
-	lights.push_back(light);
+	// FOR EACH TYPE OF SHADOW COMMENT/UNCOMMENT ITS RESPECTIVE LINE
+	//std::vector<glm::vec3> lights = lightPositions(); // SOFT SHADOWS
+	std::vector<glm::vec3> lights; // NO SOFT SHADOWS
 
+	lights.push_back(light);
 	int score = 0;
 
 	for (int i = 0; i < lights.size(); i++)
 	{
-
 		std::vector<RayTriangleIntersection> lightPoints = getClosestIntersection(triangles, point, glm::normalize(lights[i] - point));
 		std::string lightcol = getClosestIntersection(triangles, lights[i], glm::vec3(0, 1, 0)).back().intersectedTriangle.colour.name;
 		
@@ -747,7 +759,6 @@ float isShadow(glm::vec3 point, std::vector<ModelTriangle> triangles, int index)
 				score += 1;
 		}
 	}
-
 	return (lights.size()-score)/(lights.size() * 1.0f);
 }
 
@@ -779,17 +790,21 @@ glm::vec3 barycentric(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 point)
 float normalBrightness (glm::vec3 point, glm::vec3 normal, float shadow)
 {
 	float brightness = getBrightness(point);
-	float angle = fabs(glm::dot(normal, glm::normalize(light-point)));
-	//float angle = glm::dot(normal, glm::normalize(light-point)); SPHERE
+	float angle;
+
+	if (isSphere)
+		angle = glm::dot(normal, glm::normalize(light-point)); 
+	else
+		angle = fabs(glm::dot(normal, glm::normalize(light-point)));
 	
 	float coef = 2 * glm::dot(glm::normalize(light-point), normal);
 	glm::vec3 reflection = glm::normalize(light-point) - coef * normal;
 	float spread = std::pow(glm::dot(glm::normalize(camPos-point), reflection), 256) ;
 
 	float multiplier;
-	/*if (angle < 0) 
-		multiplier = 0.1f; SPHERE
-	else */
+	if (angle < 0 && isSphere) 
+		multiplier = 0.1f; 
+	else 
 		multiplier = 0.8 * brightness * angle + 0.2 * brightness * fabs(spread) + 0.2f;
 	
 	if (shadow != 36) multiplier = multiplier * shadow + 0.1f;
@@ -797,23 +812,31 @@ float normalBrightness (glm::vec3 point, glm::vec3 normal, float shadow)
 	return multiplier;
 }
 
-/*float phongBrightness(glm::vec3 point, ModelTriangle &triangle, int index, glm::vec3 cameraPos)
+float phongBrightness(glm::vec3 point, ModelTriangle &triangle, int index)
 {
-	glm::vec3 normal1 = faceNormals[index][0];
-	glm::vec3 normal2 = faceNormals[index][1];
-	glm::vec3 normal3 = faceNormals[index][2];
+	glm::vec3 normal1, normal2, normal3;
+
+	if (!faceNormals.empty()){
+		normal1 = faceNormals[index][0];
+		normal2 = faceNormals[index][1];
+		normal3 = faceNormals[index][2];
+	}
 
 	glm::vec3 bary = barycentric(triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], point);
 	glm::vec3 interpolatedNormal = bary[0] * normal1 + bary[1] * normal2 + bary[2] * normal3;
 
-	return normalBrightness(point, glm::normalize(interpolatedNormal), false, cameraPos);
-}*/
+	return normalBrightness(point, glm::normalize(interpolatedNormal), 36);
+}
 
-/*float gouraudBrightness(glm::vec3 point, ModelTriangle &triangle, int index)
+float gouraudBrightness(glm::vec3 point, ModelTriangle &triangle, int index)
 {
-	glm::vec3 normal1 = faceNormals[index][0];
-	glm::vec3 normal2 = faceNormals[index][1];
-	glm::vec3 normal3 = faceNormals[index][2];
+	glm::vec3 normal1, normal2, normal3;
+
+	if (!faceNormals.empty()){
+		normal1 = faceNormals[index][0];
+		normal2 = faceNormals[index][1];
+		normal3 = faceNormals[index][2];
+	}
 
 	glm::vec3 bary = barycentric(triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], point);
 	
@@ -854,11 +877,10 @@ float normalBrightness (glm::vec3 point, glm::vec3 normal, float shadow)
 		m3 = 0.8 * b3 * angle3 + 0.2 * b3 * fabs(spread3) + 0.1f;
 
 	return bary[0] * m1 + bary[1] * m2 + bary[2] * m3;
-}*/
+}
 
 Colour reflectedColour(glm::vec3 point, glm::vec3 normal, std::vector<ModelTriangle> triangles, int &depth, int mxd, float m){
 	if (depth > mxd) {
-		//m *= 0.6;
 		return Colour(237, 193, 62);
 	}
 	float coef = 2 * glm::dot(glm::normalize(camPos-point), normal);
@@ -867,7 +889,7 @@ Colour reflectedColour(glm::vec3 point, glm::vec3 normal, std::vector<ModelTrian
 	reflection.x = fabs(reflection.x);
 	reflection.y = fabs(reflection.y);
 	reflection.z = fabs(reflection.z);
-	
+
 	std::vector<RayTriangleIntersection> mirrorPoint = getClosestIntersection(triangles, point, reflection);
 
 	depth += 1;
@@ -881,17 +903,16 @@ Colour reflectedColour(glm::vec3 point, glm::vec3 normal, std::vector<ModelTrian
 		m = std::min(normalBrightness(mirrorPoint.back().intersectionPoint, mirrorPoint.back().intersectedTriangle.normal, false), 1.0f);
 		return mirrorPoint.back().intersectedTriangle.colour;
 	}
-	//m *= 0.6;
 	return Colour(237, 193, 62);
 }
-
 
 uint32_t getTexturePoint(ModelTriangle triangle, glm::vec3 point, int j, int tIndex){
 	glm::vec3 bary = barycentric(triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], point);
 	float textureX = triangle.texturePoints[0].x * bary[0] + triangle.texturePoints[1].x * bary[1] + triangle.texturePoints[2].x * bary[2];
 	float textureY = triangle.texturePoints[0].y * bary[0] + triangle.texturePoints[1].y * bary[1] + triangle.texturePoints[2].y * bary[2];
 	
-	float mini = INT32_MAX;
+	// ATTEMPT TO DO CORRECTED PERSPECTIVE, UNCOMMENT FOR CHECKING IT WHEN TEXTURING ------
+	/*float mini = INT32_MAX;
 	float maxi = -100;
 	int indmin, indmax;
 
@@ -905,7 +926,6 @@ uint32_t getTexturePoint(ModelTriangle triangle, glm::vec3 point, int j, int tIn
 			indmax = k;
 		}
 	}
-
 	float q = bary[1];
 
 	float z0 = 1/triangle.vertices[indmin].z;
@@ -914,11 +934,21 @@ uint32_t getTexturePoint(ModelTriangle triangle, glm::vec3 point, int j, int tIn
 	float c0 = triangle.texturePoints[indmin].y;
 	float c1 = triangle.texturePoints[indmax].y;
 
-	float c = ((c0/z0)*(1-q) + (c1/z1)*q) / ((1/z0)*(1-q) + (1/z1)*q);
-	//std::cout << c << " " << bary[1] <<  " " << texture.height <<'\n';
-	//return getTextureColour(round(textureX), (int)round(fabs(c)) % 395);
+	float c = ((c0/z0)*(1-q) + (c1/z1)*q) / ((1/z0)*(1-q) + (1/z1)*q);*/
+	// --------------------------------------------------------------------------------------
+
 	return getTextureColour(round(textureX), round(textureY));
 }
+
+/*void calculateFaceNormals(std::vector<ModelTriangle> triangles){
+	for (int i=0; i < triangles.size(); i++){
+		ModelTriangle triangle = triangles[i];
+		for (int j=0; j < 3; j++){
+			std::vector<glm:vec3> normals;
+
+		}
+	}
+}*/
 
 int count = 0;
 void drawRayTraced(DrawingWindow &window, std::vector<ModelTriangle> triangles)
@@ -942,21 +972,32 @@ void drawRayTraced(DrawingWindow &window, std::vector<ModelTriangle> triangles)
 				glm::vec3 point = closestPoint.back().intersectionPoint;
 				ModelTriangle triangle = closestPoint.back().intersectedTriangle;
 				int t = closestPoint.back().triangleIndex;
-				float shadow = isShadow(point, triangles, t);
-				//float shadow = 36;
+				float shadow, m=0;
 
-				//float m = std::min(phongBrightness(point, triangle, t, adjustedCamera), 1.0f);
-				//float m = std::min(gouraudBrightness(point, triangle, t), 1.0f);
-				float m = std::min(normalBrightness(point, triangles[t].normal, shadow), 1.0f);
+				if (!isSphere)
+					shadow = isShadow(point, triangles, t);
+				else
+					shadow = 36;
+
+				// GOURAUD AND PHONG ONLY ON SPHERE, ONLY UNCOMMENT ONE AT A TIME
+				if (isSphere){
+					m = std::min(phongBrightness(point, triangle, t), 1.0f); // SPHERE
+					//float m = std::min(gouraudBrightness(point, triangle, t), 1.0f); // SPHERE
+					//float m = std::min(normalBrightness(point, triangles[t].normal, shadow), 1.0f); // normal sphere
+				}
+				else
+					m = std::min(normalBrightness(point, triangles[t].normal, shadow), 1.0f); // CORNELL BOX
+
 				Colour c = triangles[t].colour;
 				
-				if (t == 31 || t == 26){
+				// Comment for disabling mirror ------------
+				if ((t == 31 || t == 26) && (!isSphere)){
 					int depth = 0;
 					c = reflectedColour(point, triangles[t].normal, triangles, depth, 3, m);
 					//m *= 0.6;
 				}
-				//if (t == 23 || t == 28) {
-				
+				// -----------------------------------------
+
 				uint32_t colour = (255 << 24) + (int(c.red * m) << 16) + (int(c.green * m) << 8) + int(c.blue * m);
 
 				if (drawTexture && triangle.texturePoints[0].x != 0){
@@ -973,35 +1014,41 @@ void drawRayTraced(DrawingWindow &window, std::vector<ModelTriangle> triangles)
 
 	if (orbit)
 	{
-		glm::mat3 matY = yRotationMatrix(0.0174532925);
+		if (!isSphere){
+			// FOR EACH ANIMATION TO WORK THE OTHER ONE MUST BE COMMENTED - only for Cornell Box
 
-		/*if (count == 152) orbit = false;
-		if (count < 16){
-			camPos.x -= 0.1;
-			count ++;
-		}
-		if (count >= 16 && count <64){
-			camPos.z -= 0.1;
-			count ++;
-		}
-		if (count >= 64 && count < 100){
-			camPos.x += 0.1;
-			count ++;
-		}
-		if (count >= 100 && count < 132){
-			camPos.z += 0.1;
-			count ++;
-		}
-		if (count >= 132 && count < 152){
-			camPos.x -= 0.1;
-			count ++;
-		}*/
+			// UNCOMMENT TO ORBIT -------------------
+			glm::mat3 matY = yRotationMatrix(0.0174532925);
+			camPos = camPos * matY;
+			camOrientation = lookAt(glm::vec3(0, 0, 0));
+			// ----------------------------------------
 
-		//camPos = camPos * matY;
-		camOrientation = camOrientation * matY;
-		//camOrientation = lookAt(glm::vec3(0, 0, 0));
-		//light.x -= 0.01;
-
+			// CODE FOR MULTIWAYPOINT - UNCOMMENT TO MAKE IT WORK AND COMMENT ABOVE
+			/*if (count == 152) orbit = false;
+			if (count < 16){
+				camPos.x -= 0.1;
+				count ++;
+			}
+			if (count >= 16 && count <64){
+				camPos.z -= 0.1;
+				count ++;
+			}
+			if (count >= 64 && count < 100){
+				camPos.x += 0.1;
+				count ++;
+			}
+			if (count >= 100 && count < 132){
+				camPos.z += 0.1;
+				count ++;
+			}
+			if (count >= 132 && count < 152){
+				camPos.x -= 0.1;
+				count ++;
+			}*/
+			//
+		}
+		else
+			light.x -= 0.01;
 	}
 }
 
@@ -1010,10 +1057,16 @@ int main(int argc, char *argv[])
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 	std::srand(std::time(nullptr));
+	std::string filename;
 
 	std::map<std::string, Colour> colours;
-	colours = readMTL("cornell-box.mtl");
-	std::vector<ModelTriangle> triangles = readOBJ("cornell-box.obj", colours, window);
+	if (isSphere)
+		filename = "sphere.obj";
+	else {
+		filename = "cornell-box.obj"; 
+		colours = readMTL("cornell-box.mtl");
+	}
+	std::vector<ModelTriangle> triangles = readOBJ(filename, colours, window);
 
 	//if (drawTexture)
 	//	mapTexture(window);
