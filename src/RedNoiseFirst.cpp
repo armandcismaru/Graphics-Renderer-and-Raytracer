@@ -40,7 +40,7 @@ bool orbit = false;
 // FOR DISPLAYING TEXTURES IN CORNELL BOX SET drawtexture TO TRUE
 
 bool isSphere = false; // SPHERE
-bool drawTexture = false ; // TEXTURE
+bool drawTexture = true ; // TEXTURE
 
 glm::mat3 camOrientation = glm::mat3(1.0);
 
@@ -934,7 +934,8 @@ uint32_t getTexturePoint(ModelTriangle triangle, glm::vec3 point, int j, int tIn
 	float c0 = triangle.texturePoints[indmin].y;
 	float c1 = triangle.texturePoints[indmax].y;
 
-	float c = ((c0/z0)*(1-q) + (c1/z1)*q) / ((1/z0)*(1-q) + (1/z1)*q);*/
+	float c = ((c0/z0)*(1-q) + (c1/z1)*q) / ((1/z0)*(1-q) + (1/z1)*q);
+	textureY = (int)round(fabs(c)) % 395;*/
 	// --------------------------------------------------------------------------------------
 
 	return getTextureColour(round(textureX), round(textureY));
